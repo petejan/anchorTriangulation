@@ -50,7 +50,7 @@ fn = sys.argv[1]
 
 # read the event log file
 
-with open(fn , 'rb') as f:
+with open(fn , 'rt' , encoding="iso-8859-1") as f:
     reader = csv.reader(f)
     for row in reader:
         if (row[0].startswith(';')):
@@ -64,7 +64,7 @@ with open(fn , 'rb') as f:
         if (len(ore) >= 9):
             if (ore[9] != '--.---'):
                 if (float(ore[9]) > 0.4):
-                    print row[3], row[4], ore[9] 
+                    print (row[3], row[4], ore[9]) 
                     t.append(float(ore[9]))
                     utmloc.append(utm.from_latlon(float(row[3]), float(row[4]), force_zone_number = anchor_utm[2]))
                     i = i + 1
@@ -174,10 +174,10 @@ with PdfPages(fn+'.pdf') as pdf:
 
 fallback = (np.sqrt(x1**2 + y1**2))
 
-print 'file ', fn
-print 'std error first pass {:4.2f}'.format(stderror)
-print 'fit = ' , x1 , ' y ', y1, ' z1 = ', z1
-print 'std error second pass {:4.2f}'.format(stderror1)
-print 'fall back {:4.1f} (m)'.format(fallback)
-print "anchor solution lat {:9.5f} lon {:9.5f}".format(ll[0], ll[1])
-print 'release depth {:6.1f} anchor depth {:6.1f}'.format(z1, z1+release_height_above_seafloor+ship_transducer_depth)
+print ('file ', fn)
+print ('std error first pass {:4.2f}'.format(stderror))
+print ('fit = ' , x1 , ' y ', y1, ' z1 = ', z1)
+print ('std error second pass {:4.2f}'.format(stderror1))
+print ('fall back {:4.1f} (m)'.format(fallback))
+print ('anchor solution lat {:9.5f} lon {:9.5f}'.format(ll[0], ll[1]))
+print ('release depth {:6.1f} anchor depth {:6.1f}'.format(z1, z1+release_height_above_seafloor+ship_transducer_depth))
