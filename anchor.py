@@ -1,78 +1,92 @@
-# -*- coding: utf-8 -*-
+import numpy as np
+import utm
+import sys
+import re
+
+import datetime
+
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+
+import scipy.optimize as optimize
+
 """
 Created on Thu Mar 26 18:05:51 2015
 
-@author: pete
+python program to find anchor position from release soundings
+
+format of input file:
+
+2021-04-24 05:41:23 UTC,46°49.90' S,141°38.76'E,-46.831707,141.645980,Anchor deployed
+2021-04-24 07:33:52 UTC,46°51.00' S,141°36.06'E,-46.849947,141.601010,SAZ-23 triangulation
+2021-04-24 07:34:26 UTC,46°50.99' S,141°36.06'E,-46.849905,141.600973,
+2021-04-24 07:35:05 UTC,46°50.99' S,141°36.06'E,-46.849819,141.600946,RNG: TX = 11.0 RX = 12.0 time = --.--- Sec.
+2021-04-24 07:35:18 UTC,46°50.99' S,141°36.06'E,-46.849789,141.600935,CMD: 265023
+2021-04-24 07:36:28 UTC,46°50.98' S,141°36.05'E,-46.849733,141.600888,RNG: TX = 11.0 RX = 12.0 time = 08.807 Sec.
+2021-04-24 07:36:53 UTC,46°50.98' S,141°36.05'E,-46.849711,141.600882,CMD: 265046
+2021-04-24 07:37:59 UTC,46°50.98' S,141°36.05'E,-46.849642,141.600822,CMD: 173633
+2021-04-24 07:39:18 UTC,46°50.97' S,141°36.05'E,-46.849503,141.600754,RNG: TX = 11.0 RX = 12.0 time = --.--- Sec.
+2021-04-24 07:39:40 UTC,46°50.97' S,141°36.04'E,-46.849470,141.600724,RNG: TX = 11.0 RX = 12.0 time = 08.807 Sec.
+2021-04-24 07:41:08 UTC,46°50.96' S,141°36.04'E,-46.849323,141.600588,RNG: TX = 11.0 RX = 12.0 time = 08.806 Sec.
+
+
+@author: Peter Jansen
+
+2022-05-27 Added text page to pdf output
+
 """
 
-import numpy as np
-import utm
-
-import datetime
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-
-import matplotlib.pyplot as plt
-import scipy.optimize as optimize
-import csv
-import sys
-from matplotlib.patches import Circle
-
-def d(x, y, z):
-    return np.sqrt(x**2 + y**2 + z**2)
-    
+# error function to optimise 
 def dist(x, x0, y0, z0):
     return np.sqrt((x[0] - x0)**2 + (x[1] - y0)**2 + z0 ** 2)
 
-def distz(x, z0):
-    return np.sqrt((x[0])**2 + (x[1])**2 + z0 ** 2)
-
-#obs = 2
-#x = np.zeros([obs, 3])
-#y = np.zeros(obs)
- 
-#guess = [0, 0, 4000]
-#x[0] = [-10, -10, 4020]
-#y[0] = 4000
-#x[1] = [10, 10, 4020]
-#y[1] = 4000
-
-#(x0, y0, z0), pcov = optimize.curve_fit(dist, x, y, guess)
+def distz(point, z0):
+    return np.sqrt((point[0])**2 + (point[1])**2 + z0 ** 2)
 
 i = 0
-utmloc =[]
-t = []
 
-#fn = '2015-03-25-EventLog-Pulse-11-triangulation.txt'
-#fn = '2015-03-23-EventLog-SOFS-5-triangulation.txt'
-#fn = '2015-03-27-EventLog-SAZ47-17-triangulation.txt'
+utmloc = []  # list of utm locations
+t = []  # list of times
+
+list_pre = []  # list of pre-locations
+
+# get file from command line
 fn = sys.argv[1]
+
+line_exp = re.compile(r'(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}) UTC.*,.*,.*,(.*),(.*),(.*)$')
+range_exp = re.compile(r'(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2}) UTC.*,.*,.*,(.*),(.*),RNG: TX = [\d\.]* RX = [\d\.]* time = ([\d\.]*) Sec\.$')
 
 # read the event log file
 
 with open(fn , 'rt' , encoding="iso-8859-1") as f:
-    reader = csv.reader(f)
-    for row in reader:
-        if (row[0].startswith(';')):
-            continue
-        txt = row[5]
-        if ((txt.find('Anchor') >= 0)) | ( i == 0): # get position of anchor drop, or first record
-            anchor_drop_lat = np.float64(row[3])
-            anchor_drop_lon = np.float64(row[4])
-            anchor_utm = utm.from_latlon(anchor_drop_lat, anchor_drop_lon);
-        ore = row[5].split(' ')
-        if (len(ore) >= 9):
-            if (ore[9] != '--.---'):
-                if (float(ore[9]) > 0.4):
-                    print (row[3], row[4], ore[9]) 
-                    t.append(float(ore[9]))
-                    utmloc.append(utm.from_latlon(float(row[3]), float(row[4]), force_zone_number = anchor_utm[2]))
-                    i = i + 1
 
-ship_transducer_depth=6.3 # m
+    for line in f:
+        if (line.startswith(';')):
+            continue
+
+        matchobj = line_exp.match(line)
+        if matchobj:
+            if (line.find('Anchor') >= 0) | (i == 0): # get position of anchor drop, or first record
+                anchor_drop_lat = np.float64(matchobj.group(2))
+                anchor_drop_lon = np.float64(matchobj.group(3))
+                anchor_utm = utm.from_latlon(anchor_drop_lat, anchor_drop_lon);
+                
+            match_range = range_exp.match(line)
+            if match_range:
+                print (match_range.group(2), match_range.group(3), match_range.group(4)) 
+                t.append(float(match_range.group(4)))
+                utmloc.append(utm.from_latlon(float(match_range.group(2)), float(match_range.group(3)), force_zone_number = anchor_utm[2]))
+            else:
+                list_pre.append({'ts': matchobj.group(1), 'lat': float(matchobj.group(2)), 'lon': float(matchobj.group(3)), 'txt': matchobj.group(4)})
+            i = i + 1
+
+#ship_transducer_depth=6.3 # m
+ship_transducer_depth=9 # m
 #release_height_above_seafloor=33.5 # m
 #release_height_above_seafloor=56.6 # m EAC
-release_height_above_seafloor=125.1 # m SAZ
+#release_height_above_seafloor=125.1 # m SAZ
+release_height_above_seafloor=46 # m SAZ
 soundspeed=1500.0 # local speed m/s
 
 soundx = [u[0] for u in utmloc]
@@ -114,8 +128,36 @@ for i in np.arange(len(obs1[0])):
     
 stderror1 = error1.mean()
 
+fallback = (np.sqrt(x1**2 + y1**2))
+
 with PdfPages(fn+'.pdf') as pdf:
-        
+
+    #plt.figure(figsize=(11.69, 8.27))
+    plt.figure()
+
+    txt = 'sound speed used : ' + str(soundspeed) + ' m/s\n'
+    txt += 'ship transducer depth : ' + str(ship_transducer_depth) + ' m\n'
+    txt += 'release to anchor : ' + str(release_height_above_seafloor) + ' m\n\n'
+
+    for l in list_pre:
+        pre_utm = utm.from_latlon(l['lat'], l['lon'], force_zone_number = anchor_utm[2]);
+        pre_dist = np.sqrt((np.float(pre_utm[0]) - np.float(anchor_utm[0]) + x1)**2 + (np.float(pre_utm[1]) - np.float(anchor_utm[1]) + y1)**2)
+        txt += l['ts'] + ' pre : ' + '{:6.2f} m'.format(pre_dist) + ' : ' + l['txt'] + '\n'
+    txt += '\n'
+
+    txt += 'file : ' + fn + '\n' + '\n'
+    txt += 'std error first pass {:4.2f}'.format(stderror) + '\n'
+    txt += 'fit x = {:6.2f}, y = {:6.2f}, z1 = {:6.2f}'.format( x1 , y1,  z1) + '\n'
+    txt += 'std error second pass {:4.2f}'.format(stderror1) + '\n'
+    txt += 'fall back {:4.1f} (m)'.format(fallback) + '\n'
+    txt += 'anchor solution lat {:9.5f} lon {:9.5f}'.format(ll[0], ll[1]) + '\n'
+    txt += 'release depth {:6.1f} anchor depth {:6.1f}'.format(z1, z1+release_height_above_seafloor+ship_transducer_depth)
+
+    plt.text(-0.1, -0.1, txt, fontsize=8, family='monospace')
+    plt.axis('off')
+    pdf.savefig()
+    plt.close()
+
     # now some plotting
     fig, ax = plt.subplots()
     
@@ -166,15 +208,13 @@ with PdfPages(fn+'.pdf') as pdf:
     d['Title'] = 'Anchor Triangulation'
     d['Author'] = 'Peter Jansen'
     d['Subject'] = 'Anchor Triangulation'
-    d['CreationDate'] = datetime.datetime(2015, 4, 2)
+    d['CreationDate'] = datetime.datetime(2022, 5, 27)
     d['ModDate'] = datetime.datetime.today()
 
 
 # some outputs
 
-fallback = (np.sqrt(x1**2 + y1**2))
-
-print ('file ', fn)
+print ('file', fn)
 print ('std error first pass {:4.2f}'.format(stderror))
 print ('fit = ' , x1 , ' y ', y1, ' z1 = ', z1)
 print ('std error second pass {:4.2f}'.format(stderror1))
