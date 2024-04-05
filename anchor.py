@@ -68,9 +68,10 @@ with open(fn , 'rt' , encoding="iso-8859-1") as f:
         matchobj = line_exp.match(line)
         if matchobj:
             if (line.find('Anchor') >= 0) | (i == 0): # get position of anchor drop, or first record
-                anchor_drop_lat = np.float64(matchobj.group(2))
-                anchor_drop_lon = np.float64(matchobj.group(3))
-                anchor_utm = utm.from_latlon(anchor_drop_lat, anchor_drop_lon);
+                anchor_drop_lat = float(matchobj.group(2))
+                anchor_drop_lon = float(matchobj.group(3))
+                anchor_utm = utm.from_latlon(anchor_drop_lat, anchor_drop_lon)
+                print("anchor reference", anchor_drop_lat, anchor_drop_lon, line)
                 
             match_range = range_exp.match(line)
             if match_range:
@@ -83,10 +84,10 @@ with open(fn , 'rt' , encoding="iso-8859-1") as f:
 
 #ship_transducer_depth=6.3 # m
 ship_transducer_depth=9 # m
-#release_height_above_seafloor=33.5 # m
+release_height_above_seafloor=39 # m SOFS
 #release_height_above_seafloor=56.6 # m EAC
 #release_height_above_seafloor=125.1 # m SAZ
-release_height_above_seafloor=46 # m SAZ
+#release_height_above_seafloor=46 # m SAZ
 soundspeed=1500.0 # local speed m/s
 
 soundx = [u[0] for u in utmloc]
@@ -94,8 +95,8 @@ soundy = [u[1] for u in utmloc]
 
 # create a local coordinate centre fr0m the anchor drop position
 
-localx = soundx - np.float64(anchor_utm[0])
-localy = soundy - np.float64(anchor_utm[1])
+localx = np.asarray(soundx) - anchor_utm[0]
+localy = np.asarray(soundy) - anchor_utm[1]
 
 # convert ping travel time to distance
 z = np.multiply(t, soundspeed / 2)
@@ -120,7 +121,9 @@ obs1 = [localx[error < tolerance], localy[error < tolerance]]
 z_1 = z[error < tolerance]
     
 (x1, y1, z1), pcov = optimize.curve_fit(dist, obs1, z_1, [x0, y0, z0])
-ll = utm.to_latlon(x1 + anchor_utm[0], y1 + anchor_utm[1], anchor_utm[2], anchor_utm[3])
+print('anchor utm', anchor_utm)
+anchor_solution = (x1 + anchor_utm[0], y1 + anchor_utm[1], anchor_utm[2], anchor_utm[3])
+anchor_solution_ll = utm.to_latlon(anchor_solution[0], anchor_solution[1], anchor_solution[2], anchor_solution[3])
 
 error1 = np.zeros(len(obs1[0]))
 for i in np.arange(len(obs1[0])):
@@ -141,7 +144,8 @@ with PdfPages(fn+'.pdf') as pdf:
 
     for l in list_pre:
         pre_utm = utm.from_latlon(l['lat'], l['lon'], force_zone_number = anchor_utm[2]);
-        pre_dist = np.sqrt((np.float(pre_utm[0]) - np.float(anchor_utm[0]) + x1)**2 + (np.float(pre_utm[1]) - np.float(anchor_utm[1]) + y1)**2)
+        pre_dist = np.sqrt((anchor_solution[0] - pre_utm[0])**2 + (anchor_solution[1] - pre_utm[1])**2)
+        #print('pre list', l, pre_dist)
         txt += l['ts'] + ' pre : ' + '{:6.2f} m'.format(pre_dist) + ' : ' + l['txt'] + '\n'
     txt += '\n'
 
@@ -150,7 +154,7 @@ with PdfPages(fn+'.pdf') as pdf:
     txt += 'fit x = {:6.2f}, y = {:6.2f}, z1 = {:6.2f}'.format( x1 , y1,  z1) + '\n'
     txt += 'std error second pass {:4.2f}'.format(stderror1) + '\n'
     txt += 'fall back {:4.1f} (m)'.format(fallback) + '\n'
-    txt += 'anchor solution lat {:9.5f} lon {:9.5f}'.format(ll[0], ll[1]) + '\n'
+    txt += 'anchor solution lat {:9.5f} lon {:9.5f}'.format(anchor_solution_ll[0], anchor_solution_ll[1]) + '\n'
     txt += 'release depth {:6.1f} anchor depth {:6.1f}'.format(z1, z1+release_height_above_seafloor+ship_transducer_depth)
 
     plt.text(-0.1, -0.1, txt, fontsize=8, family='monospace')
@@ -173,16 +177,17 @@ with PdfPages(fn+'.pdf') as pdf:
     
     # create circles on the plot based on the radius
     for i in np.arange(len(localx)):
-        r = np.sqrt(z[i]**2 - z1**2)
-        edgecolor = 'g'
-        # colour points out of the tolerence red
-        if (error[i] > tolerance):
-            edgecolor = 'r'
-        c = Circle([localx[i], localy[i]], r, fill=0, edgecolor=edgecolor, linewidth=0.2)
-        ax.add_patch(c)
-    
+        if z[i] > z1:
+            r = np.sqrt(z[i]**2 - z1**2)
+            edgecolor = 'g'
+            # colour points out of the tolerence red
+            if (error[i] > tolerance):
+                edgecolor = 'r'
+            c = Circle([localx[i], localy[i]], r, fill=0, edgecolor=edgecolor, linewidth=0.2)
+            ax.add_patch(c)
+                            
     plt.grid()
-    plt.title(fn + '\nanchor {:6.1f}(m) lat,lon {:9.5f} {:9.5f} deg\nmean error 2nd pass {:4.2f} (m)\nred - 2nd pass, blue-star 1st pass, black circle - 1sd'.format(z1+release_height_above_seafloor+ship_transducer_depth, ll[0], ll[1], stderror1), fontsize=8)
+    plt.title(fn + '\nanchor {:6.1f}(m) lat,lon {:9.5f} {:9.5f} deg\nmean error 2nd pass {:4.2f} (m)\nred - 2nd pass, blue-star 1st pass, black circle - 1sd'.format(z1+release_height_above_seafloor+ship_transducer_depth, anchor_solution_ll[0], anchor_solution_ll[1], stderror1), fontsize=8)
     plt.xlabel('x dist from anchor drop (m)')
     plt.ylabel('y dist from anchor drop (m)')
     pdf.savefig()
@@ -219,5 +224,5 @@ print ('std error first pass {:4.2f}'.format(stderror))
 print ('fit = ' , x1 , ' y ', y1, ' z1 = ', z1)
 print ('std error second pass {:4.2f}'.format(stderror1))
 print ('fall back {:4.1f} (m)'.format(fallback))
-print ('anchor solution lat {:9.5f} lon {:9.5f}'.format(ll[0], ll[1]))
+print ('anchor solution lat {:9.5f} lon {:9.5f}'.format(anchor_solution_ll[0], anchor_solution_ll[1]))
 print ('release depth {:6.1f} anchor depth {:6.1f}'.format(z1, z1+release_height_above_seafloor+ship_transducer_depth))
