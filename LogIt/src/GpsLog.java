@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 
+import org.imos.abos.Common;
+
 import ocss.nmea.api.NMEAEvent;
 import ocss.nmea.parser.GeoPos;
 import ocss.nmea.parser.StringParsers;
@@ -25,7 +27,7 @@ public class GpsLog
 	{
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 		
-		connection = common.getConnection();
+		connection = Common.getConnection();
 		
 //        Table "public.track"
 //		Column   |            Type             | Modifiers 
@@ -64,6 +66,7 @@ public class GpsLog
 		GeoPos pos = null;
 		int head = -1000;
 		Date ut = null;
+		String voyage = Common.getProp("voyage", "IN-2015-V01");
 		
 		while (true)
 		{
@@ -102,7 +105,7 @@ public class GpsLog
 									Timestamp ts = new Timestamp(t);
 									
 									preparedStatement.setTimestamp(1, ts);
-									preparedStatement.setString(2, "IN-2015-V01");
+									preparedStatement.setString(2, voyage);
 									preparedStatement.setDouble(3, pos.lat);
 									preparedStatement.setDouble(4, pos.lng);
 									preparedStatement.setDouble(5, 0);
@@ -157,13 +160,18 @@ public class GpsLog
 	{
 		try 
 		{
-			common.setPropFile("ddls.properties");
+			Common.setPropFile("ddls.properties");
 			
 			GpsLog gps = new GpsLog();
 			
 			gps.run();
 		} 
-		catch (SQLException | SocketException e) 
+		catch (SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		catch (SocketException e) 
 		{
 			// TODO Auto-generated catch block
 			e.printStackTrace();

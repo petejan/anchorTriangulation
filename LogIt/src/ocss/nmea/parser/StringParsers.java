@@ -980,12 +980,12 @@ public class StringParsers
         {
           String deg = data[3].substring(0, 2);
           String min = data[3].substring(2);
-          double l = GeomUtil.sexToDec(deg, min);
+          double l = GeomUtil.SexToDec(deg, min);
           if ("S".equals(data[4]))
             l = -l;
           deg = data[5].substring(0, 3);
           min = data[5].substring(3);
-          double g = GeomUtil.sexToDec(deg, min);
+          double g = GeomUtil.SexToDec(deg, min);
           if ("W".equals(data[6]))
             g = -g;
           rmc.setGp(new GeoPos(l, g));

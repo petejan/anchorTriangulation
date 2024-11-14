@@ -15,6 +15,8 @@ import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 
+import org.imos.abos.Common;
+
 import ocss.nmea.api.NMEAEvent;
 import ocss.nmea.parser.GeoPos;
 import ocss.nmea.parser.StringParsers;
@@ -28,7 +30,7 @@ public class MulticastGpsLog
 	{
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 		
-		connection = common.getConnection();
+		connection = Common.getConnection();
 		
 //        Table "public.track"
 //		Column   |            Type             | Modifiers 
@@ -54,9 +56,9 @@ public class MulticastGpsLog
 		InetAddress group = null;
 			try
 			{
-				group = InetAddress.getByName(common.getProp("gpsmulticastaddress","224.0.36.0"));
+				group = InetAddress.getByName(Common.getProp("gpsmulticastaddress","224.0.36.0"));
 				System.out.println("Group " + group);
-				int port = Integer.parseInt(common.getProp("gpsport", "50102"));
+				int port = Integer.parseInt(Common.getProp("gpsport", "50102"));
 				System.out.println("port " + port);
 				
 				sock = new MulticastSocket(port);
@@ -88,6 +90,7 @@ public class MulticastGpsLog
 		int head = -1000;
 		Date ut = null;
 		long lastt = new Date().getTime();
+		String voyage = Common.getProp("voyage", "IN-2015-V01");
 
 		while (true)
 		{
@@ -131,7 +134,7 @@ public class MulticastGpsLog
 									Timestamp ts = new Timestamp(t);
 									
 									preparedStatement.setTimestamp(1, ts);
-									preparedStatement.setString(2, "IN-2015-V01");
+									preparedStatement.setString(2, voyage);
 									preparedStatement.setDouble(3, pos.lat);
 									preparedStatement.setDouble(4, pos.lng);
 									preparedStatement.setDouble(5, 0);
@@ -184,15 +187,22 @@ public class MulticastGpsLog
 	
 	public static void main(String[] args) 
 	{
+		System.setProperty("java.net.preferIPv4Stack" , "true");
+
 		try 
 		{
-			common.setPropFile("ddls.properties");
+			Common.setPropFile("ddls.properties");
 			
 			MulticastGpsLog gps = new MulticastGpsLog();
 			
 			gps.run();
 		} 
-		catch (SQLException | SocketException e) 
+		catch (SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		catch (SocketException e) 
 		{
 			// TODO Auto-generated catch block
 			e.printStackTrace();

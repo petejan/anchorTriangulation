@@ -23,6 +23,8 @@ import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 
+import org.imos.abos.Common;
+
 import ocss.nmea.api.NMEAEvent;
 import ocss.nmea.parser.GeoPos;
 import ocss.nmea.parser.StringParsers;
@@ -38,7 +40,7 @@ public class MulticastLog
 	{
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));	
 		
-		connection = common.getConnection();		
+		connection = Common.getConnection();		
 		
 //			Table "public.raw_instrument_data"
 //		Column      |           Type           |           Modifiers            
@@ -73,8 +75,8 @@ public class MulticastLog
 		InetAddress group = null;
 		try 
 		{
-			group = InetAddress.getByName(common.getProp("multicast.isus.group","224.0.36.0"));
-			int port = Integer.parseInt(common.getProp("multicast.isus.port", "51412"));
+			group = InetAddress.getByName(Common.getProp("multicast.isus.group","224.0.36.0"));
+			int port = Integer.parseInt(Common.getProp("multicast.isus.port", "51412"));
 			
 			sock = new MulticastSocket(port);
 			sock.joinGroup(group);
@@ -97,19 +99,20 @@ public class MulticastLog
 			e.printStackTrace();
 		}
 
-		String s;
+		String s = "";
 		String packet;
 		byte[] buf = new byte[4096];
-		String match = common.getProp("multicast.isus.match", "SATSDF.*");
-		String source = common.getProp("source", "TriAXYS");
-		String instrument = common.getProp("multicast.isus.instrument", "ISUS");
-		String voyage = common.getProp("voyage", "IN-2015-V01");
+		String match = Common.getProp("multicast.isus.match", "SATSDF.*");
+		String source = Common.getProp("source", "TriAXYS");
+		String instrument = Common.getProp("multicast.isus.instrument", "ISUS");
+		String voyage = Common.getProp("voyage", "IN-2015-V01");
 		while(true)
 		{
 			DatagramPacket pack = new DatagramPacket(buf, buf.length, group, port);
 			
 			sock.receive(pack);
 			// System.out.println("MulticastLog::receive " + pack);
+			out.write(pack.getData());
 
 			s += new String(pack.getData());
 
@@ -119,8 +122,7 @@ public class MulticastLog
 				packet = st.nextToken().trim() + "\r\n";
 				if (packet.length() > 0)
 				{
-					System.out.println("FROM SERVER: " + packet);
-					out.write((packet + "\r\n").getBytes());
+					System.out.println("LINE FROM SERVER: " + packet);
 					
 					if (packet.matches(match))
 					{
@@ -130,11 +132,11 @@ public class MulticastLog
 						preparedStatement.setString(2, instrument);
 						preparedStatement.setString(3, voyage);
 						preparedStatement.setTimestamp(4, new Timestamp(new Date().getTime()));
-						if (common.pos != null)
+						if (Common.pos != null)
 						{
-							preparedStatement.setDouble(5, common.pos.lat);
-							preparedStatement.setDouble(6, common.pos.lng);
-							preparedStatement.setDouble(7, common.head);
+							preparedStatement.setDouble(5, Common.pos.lat);
+							preparedStatement.setDouble(6, Common.pos.lng);
+							preparedStatement.setDouble(7, Common.head);
 						}
 						else
 						{
@@ -173,10 +175,10 @@ public class MulticastLog
 	{
 		try 
 		{
-			common.setPropFile("ddls.properties");
+			Common.setPropFile("ddls.properties");
 
 			MulticastLog tl = new MulticastLog();
-			(new Thread(new common.GpsThread())).start();
+			(new Thread(new Common.GpsThread())).start();
 			
 			tl.run();
 		} 

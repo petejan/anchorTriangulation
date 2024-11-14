@@ -21,6 +21,8 @@ import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 
+import org.imos.abos.Common;
+
 import ocss.nmea.api.NMEAEvent;
 import ocss.nmea.parser.GeoPos;
 import ocss.nmea.parser.StringParsers;
@@ -50,7 +52,7 @@ public class TcpLog
 		//	parameter_value | numeric(16,4)            | not null
 		//	quality_code    | character(20)            | not null default 'N/A'::bpchar
 
-		connection = common.getConnection();
+		connection = Common.getConnection();
 
 		String insertTableSQL = "INSERT INTO raw_instrument_data (source_file, instrument, voyage, data_timestamp, latitude, longitude, depth, parameter_code, parameter_value, quality_code) "+
 									" VALUES (?,?,?,?,?,?,?,?,?,?)";
@@ -91,11 +93,11 @@ public class TcpLog
 							preparedStatement.setString(2, "ISUS");
 							preparedStatement.setString(3, "IN-2015-V01");
 							preparedStatement.setTimestamp(4, new Timestamp(new Date().getTime()));
-							if (common.pos != null)
+							if (Common.pos != null)
 							{
-								preparedStatement.setDouble(5, common.pos.lat);
-								preparedStatement.setDouble(6, common.pos.lng);
-								preparedStatement.setDouble(7, common.head);
+								preparedStatement.setDouble(5, Common.pos.lat);
+								preparedStatement.setDouble(6, Common.pos.lng);
+								preparedStatement.setDouble(7, Common.head);
 							}
 							else
 							{
@@ -149,7 +151,7 @@ public class TcpLog
 		try 
 		{
 			TcpLog tl = new TcpLog();
-			(new Thread(new common.GpsThread())).start();
+			(new Thread(new Common.GpsThread())).start();
 			
 			tl.run();
 		} 
